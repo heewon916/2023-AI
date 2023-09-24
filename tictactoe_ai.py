@@ -1,4 +1,4 @@
-from wikidoc import *
+from tictactoe import *
 import random
 
 MODE = ('VS_HM', 'VS_AI')
