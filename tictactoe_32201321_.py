@@ -1,7 +1,8 @@
 from itertools import cycle
+import random
 
-HM, AI = 'O', 'X'
-PLAYERS = cycle((HM, AI))
+HUMAN, AI = 'X', 'O'
+PLAYERS = cycle((HUMAN, AI))
 WIN_LIST = ((0, 1, 2), (3, 4, 5), (6, 7, 8),
             (0, 3, 6), (1, 4, 7), (2, 5, 8),
             (0, 4, 8), (2, 4, 6))
@@ -9,20 +10,20 @@ BREAK = 0
 CONTINUE = 1
 DOING = 2
 
-MODE = ('VS_HM', 'VS_AI')
-SCORES = {AI: 1, HM: -1, 'TIE': 0}
+MODE = ('VS_HUMAN', 'VS_AI')
+SCORES = {AI: 1, HUMAN: -1, 'TIE': 0}
 
 class TicTacToe:
     def __init__(self):
-        self.__turn = next(PLAYERS)
-        self.__winner = ''
-        self.__board = ['_'] * 9
+        self.__turn = next(PLAYERS)     # 현재 차례가 누구인지
+        self.__winner = ''              # 승자를 저장
+        self.__game_board = ['_'] * 9   # 게임 보드판 정보
 
-    def print_board(self):
-        b = self.__board
+    def print_game_board(self):
+        c = self.__game_board
         print()
         for i in range(0, 9, 3):
-            print(f'{b[i]} {b[i + 1]} {b[i + 2]}')
+            print(f'{c[i]} {c[i + 1]} {c[i + 2]}')
 
     def print_turn(self):
         print(f'>> {self.__turn} << 차례 입니다.')
@@ -33,38 +34,54 @@ class TicTacToe:
 
     @turn.setter
     def turn(self, turn):
-        if turn in (HM, AI):
+        if turn in (HUMAN, AI):
             self.__turn = turn
         else:
             raise Exception("잘못된 입력입니다.")
 
     @property
     def board(self):
-        return self.__board
+        return self.__game_board
 
     # 게임판에 입력하기
-    def mark_cell(self, cell):
+    def markOnCell(self, cell):
+        '''
+        1. 빈칸에만 입력할 것
+        2. 입력이 끝나면 승리 체크
+        3. 승자 없으면 턴 넘기고
+        4. 승자 있으면 승자 출력 후 게임 종료
+        :param cell: 1-9 중 입력 -> cell 0-8에 순서대로 매칭
+        :return: DOING(계속 진행), CONTINUE(입력 다시 받음), BREAK(승자 존재->게임 종료)
+        '''
         if cell == -1 or self.__winner != '':
             return BREAK
 
-        if self.__board[cell] == '_':
-            self.__board[cell] = self.__turn
-            winner = self.check_board(self.__board[:])
+        if self.__game_board[cell] == '_':
+            self.__game_board[cell] = self.__turn   # 해당 cell 위치에 마크
+            winner = self.check_game_board(self.__game_board[:])    # 승자 체크
 
+            # 승자가 있는 경우 => 게임 종료
             if winner:
-                self.print_board()
+                self.print_game_board()
                 self.__winner = winner
                 return BREAK
 
+            # 승자 없는 경우 => 다음 차례로 넘기고
             self.change_turn()
             return DOING
-        else:
+        else:   # 번호 잘못 입력한 경우 => 다시 입력 받기
             return CONTINUE
 
     def change_turn(self):
         self.__turn = next(PLAYERS)
 
-    def check_board(self, b):
+    def check_game_board(self, b):
+        '''
+        WIN_LIST를 가지고 승리를 체크함
+        b랑 WIN_LIST의 값3개랑 비교해서 모두 같으면 승자 리턴함
+        :param b: board의 현재 상태
+        :return:
+        '''
         winner = ''
         for (x, y, z) in WIN_LIST:
             if b[x] != '_':
@@ -73,11 +90,12 @@ class TicTacToe:
                     return winner
 
         if '_' in b:
+            # 모든 리스트 다 비교했는데 빈칸 남은 경우 => 승자 아직 없음
             return ''
 
         return 'TIE'
 
-    def get_win_message(self):
+    def get_winner_message(self):
         if self.__winner == '':
             return ''
 
@@ -93,7 +111,7 @@ class TicTacToe:
             return CONTINUE
 
         if ans < 10:
-            return self.mark_cell(ans - 1)
+            return self.markOnCell(ans - 1)
 
         return CONTINUE
 
@@ -121,9 +139,14 @@ class TicTacToe_AI(TicTacToe):
 
     # AI 대전이 맞을 경우 진행하는 코드
     def ai_turn(self):
+        '''
+        전체 보드판에 대해서, best_choice() 함수 호출 후
+        결정한 해당 spot에 해당 turn에 맞는 표시 기록.
+        :return:
+        '''
         board = self.board[:]
         spot, _ = self.__best_choice(AI, board)
-        return self.mark_cell(spot)
+        return self.markOnCell(spot)
 
     def __best_choice(self, turn, board):
         '''
@@ -137,6 +160,9 @@ class TicTacToe_AI(TicTacToe):
         :param board:
         :return:
         '''
+
+        # AI인 경우 MAX Player => -10으로 초기화
+        # HUMAN인 경우 MIN Player => 10으로 초기화
         bestScore = -10 if turn == AI else 10
 
         for i, c in enumerate(board):
@@ -156,20 +182,21 @@ class TicTacToe_AI(TicTacToe):
 
     def __get_score(self, turn, board):
         '''
-        AI가 이길 때 => MAX 전략 => 1
-        사용자 이길 때 => MIN 전략 => -1
+        AI가 이길 때 => MAX Player => 1
+        사용자 이길 때 => MIN Player => -1
         비길 때 => 0
         :param turn:
         :param board:
         :return:
         '''
-        winner = self.check_board(board)
-
+        # 1. 승자 먼저 체크
+        winner = self.check_game_board(board)
+        # 1-1. 승자가 있으면 리턴
         if winner:
             return SCORES[winner]
 
-        # 턴 다음으로 넘기고 다시 best_choice() 호출
-        next_turn = HM if turn == AI else AI
+        # 2. 턴 다음으로 넘기고 다시 best_choice() 호출
+        next_turn = HUMAN if turn == AI else AI
         _, bestScore = self.__best_choice(next_turn, board)
 
         return bestScore
@@ -186,7 +213,7 @@ if __name__ == '__main__':
 
     ttt = TicTacToe_AI(mode)
     while True:
-        ttt.print_board()
+        ttt.print_game_board()
         ttt.print_turn()
 
         if ttt.is_AI_turn():
@@ -195,7 +222,7 @@ if __name__ == '__main__':
             rst = ttt.user_turn()
 
         if rst == BREAK:
-            msg = ttt.get_win_message()
+            msg = ttt.get_winner_message()
             if msg:
                 print(msg)
             else:
